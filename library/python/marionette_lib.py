@@ -266,6 +266,13 @@ class Marionette(object):
     check_port_pin(port,pin)
     return self.command("gpio.wait(%s,%s,%s,%s)", port, pin, event, timeout)['event']
 
+  def fetch_gpio_heartbeat_config(self, port, pin):
+    """
+    Configure a pin as a heartbeat (blinking) indicator
+    """
+    check_port_pin(port,pin)
+    self.command("gpio.heartbeatconfig(%s,%s)", port, pin)
+
   # fetch adc commands
 
   def fetch_adc_start(self):
