@@ -329,16 +329,16 @@ class Marionette(object):
 
   # fetch dac commands
 
-  def fetch_dac_config(self):
+  def fetch_dac_config(self, dev):
     """ Configure dac module """
-    self.command("dac.config")
+    self.command("dac.config(%s)", dev)
 
-  def fetch_dac_reset(self):
-    self.command("dac.reset")
+  def fetch_dac_reset(self,dev):
+    self.command("dac.reset(%s)", dev)
 
-  def fetch_dac_write(self, channel_1, channel_2):
+  def fetch_dac_write(self, dev, data):
     """ Write dac raw 12 bit values """
-    self.command("dac.write(%s,%s)", channel_1, channel_2)
+    self.command("dac.write(%s,%s)", dev, data)
 
   # fetch spi commands
 
@@ -433,6 +433,18 @@ class Marionette(object):
     result = self.command("i2c.receive(%s,%s,%s)", dev, address, count)
     return bytearray(result['rx'])
 
+  #fetch pwm command
+
+  def fetch_pwm_config(self, dev, freq):
+    """ Configure pwm module """
+    self.command("pwm.config(%s,%s)",dev, freq)
+
+  def fetch_pwm_reset(self, dev):
+    self.command("pwm.reset(%s)",dev)
+
+  def fetch_pwm_write(self, dev, duty):
+    """ Write pwm with duty cycle """
+    self.command("pwm.start(%s,%s)", dev, duty)
 
 
 

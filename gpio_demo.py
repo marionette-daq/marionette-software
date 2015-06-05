@@ -7,8 +7,8 @@ import struct
 import pdb
 from time import sleep
 
-TTY = '/dev/cu.usbmodemfd121'
-TTY1 = '/dev/cu.usbmodemfa131'
+TTY = '/dev/ttyACM0'
+TTY1 = '/dev/ttyACM0'
 
 port = ['h', 'h', 'f', 'f', 'f', 'f', 'f', 'g',
         'g', 'e', 'e', 'e', 'e', 'e', 'e', 'e']
@@ -34,8 +34,7 @@ if __name__== "__main__":
         for x in range(0, len(port)):
             dut.fetch_gpio_reset(port[x], pin[x])
     except marionette_lib.MarionetteResultError:
-        next
-
+        next    
     for x in range(0, len(port)):
         dut.fetch_gpio_config(port[x], pin[x], OUTPUT)
 
