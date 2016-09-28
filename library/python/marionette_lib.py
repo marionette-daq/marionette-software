@@ -266,75 +266,32 @@ class Marionette(object):
     check_port_pin(port,pin)
     return self.command("gpio.wait(%s,%s,%s,%s)", port, pin, event, timeout)['event']
 
-  def fetch_gpio_heartbeat_config(self, port, pin):
-    """
-    Configure a pin as a heartbeat (blinking) indicator
-    """
-    check_port_pin(port,pin)
-    self.command("gpio.heartbeatconfig(%s,%s)", port, pin)
-
   # fetch adc commands
 
-  def fetch_adc_start(self):
-    """ Start an adc conversion """
-    self.command("adc.start")
+  def fetch_adc_start(self, dev):
+    """ Start adc streaming """
+    self.command("adc.start(%s)", dev)
 
-  def fetch_adc_stop(self):
-    """ Stop a currently running adc conversion """
-    self.command("adc.stop")
+  def fetch_adc_stop(self, dev):
+    """ Stop adc streaming """
+    self.command("adc.stop(%s)", dev)
 
-  def fetch_adc_wait(self, timeout=10):
-    """
-    Wait for adc conversion to finish
+  def fetch_adc_single(self, dev):
+    """ Convert a single set of samples """
+    return self.command("adc.single(%s)", dev)
 
-    timeout = milliseconds
+  def fetch_adc_config(self, dev, sample_rate):
+    """ Configure adc module """
 
-    Returns true if conversion has completed
-    """
-    return self.command("adc.wait(%s)", timeout)["ready"]
-
-  def fetch_adc_status(self):
-    """
-    Query adc conversion status
-
-    Returns true if conversion has completed
-    """
-
-    return self.command("adc.status")["ready"]
-
-  def fetch_adc_samples(self):
-    """
-    Queries last set of raw adc samples
-
-    Returns a dictionary with the start time, stop time, and list of samples
-    """
-    return self.command("adc.samples")
-
-  def fetch_adc_config(self, dev, res, sample_clk, vref, count, channels):
-    """
-    Configure adc module
-
-    dev = ADC1 | ADC2 | ADC3
-    res = RES12 | RES10 | RES8 | RES6
-    sample_clk = CLK3 | CLK15 | CLK28 | CLK56 | CLK84 | CLK112 | CLK144 | CLK480
-    vref = millivolts
-    count = sample count per channel
-    channels = list of channel id's (CH0 ... CH15, SENSOR, VREFINT, VBAT)
-    """
-
-    self.command("adc.config(%s,%s,%s,%s,%s,%s)", dev, res, sample_clk, vref, count, ",".join(channels))
+    self.command("adc.config(%s,%s)", dev, sample_rate)
 
   def fetch_adc_reset(self):
     self.command("adc.reset")
 
   # fetch dac commands
 
-  def fetch_dac_config(self, dev):
-    """ Configure dac module """
-    self.command("dac.config(%s)", dev)
-
-  def fetch_dac_reset(self,dev):
-    self.command("dac.reset(%s)", dev)
+  def fetch_dac_reset(self):
+    self.command("dac.reset")
 
   def fetch_dac_write(self, dev, data):
     """ Write dac raw 12 bit values """
@@ -391,18 +348,14 @@ class Marionette(object):
 
   # fetch i2c commands
 
-  def fetch_i2c_config(self, dev):
-    """
-    Configure i2c module
+  def fetch_i2c_config(self):
+    """ Configure i2c module """
+    self.command("i2c.config")
 
-    dev = 1 | 2 | 3
-    """
-    self.command("i2c.config(%s)", dev)
+  def fetch_i2c_reset(self):
+    self.command("i2c.reset")
 
-  def fetch_i2c_reset(self, dev):
-    self.command("i2c.reset(%s)", dev)
-
-  def fetch_i2c_transmit(self, dev, address, tx_data):
+  def fetch_i2c_write(self, address, tx_data):
     """
     Transmit data to a i2c slave
 
@@ -421,30 +374,18 @@ class Marionette(object):
     else:
       raise TypeError("tx_data")
 
-    self.command("i2c.transmit(%s,%s,16,%s)", dev, address, ",".join(map(lambda d: "%x" % d, tx_data)))
+    self.command("i2c.write(%s,16,%s)", address, ",".join(map(lambda d: "%x" % d, tx_data)))
 
-  def fetch_i2c_receive(self, dev, address, count):
+  def fetch_i2c_read(self, address, count):
     """
     Transmit data to a i2c slave
 
     address = 7bit slave address
     count = number of bytes to receive
     """
-    result = self.command("i2c.receive(%s,%s,%s)", dev, address, count)
+    result = self.command("i2c.read(%s,%s)", address, count)
     return bytearray(result['rx'])
 
-  #fetch pwm command
-
-  def fetch_pwm_config(self, dev, freq):
-    """ Configure pwm module """
-    self.command("pwm.config(%s,%s)",dev, freq)
-
-  def fetch_pwm_reset(self, dev):
-    self.command("pwm.reset(%s)",dev)
-
-  def fetch_pwm_write(self, dev, duty):
-    """ Write pwm with duty cycle """
-    self.command("pwm.start(%s,%s)", dev, duty)
 
 
 
