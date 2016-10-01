@@ -249,9 +249,8 @@ class Marionette(object):
     check_port_pin(port,pin)
     return self.command("gpio.info(%s,%s)", port, pin)
 
-  def fetch_gpio_reset(self, port, pin):
-    check_port_pin(port,pin)
-    self.command("gpio.reset(%s,%s)", port, pin)
+  def fetch_gpio_reset(self):
+    self.command("gpio.reset")
 
   def fetch_gpio_wait(self, port, pin, event, timeout):
     """
