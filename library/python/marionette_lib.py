@@ -163,16 +163,13 @@ class Marionette(object):
           raise MarionetteResultError("\n".join(error_list))
         else:
           raise MarionetteFormatError("invalid end status")
-      elif param[0] == "#": # info/comment
-        logger.info(":".join(param[1:]))
-      elif param[0] == "?": # debug
-        logger.debug(":".join(param[1:]))
+      elif param[0] in ('#', '?', 'w'): # info/debug/warning
+        # these are all debug level messages at the python logging level
+        logger.debug(":".join(param))
       elif param[0] == "e": # error
         error_str = ":".join(param[1:])
         error_list.append(error_str)
         logger.error(error_str)
-      elif param[0] == "w": # warning
-        logger.warning(":".join(param[1:]))
       elif param[0] == "b" and len(param) == 3: # bool
         results[param[1]] = param[2].lower().strip() in ('true', 't', '1')
       elif param[0] == "s" and len(param) == 3: # string
