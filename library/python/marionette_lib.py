@@ -1,30 +1,9 @@
-import serial, threading, logging, time
+import serial, threading, logging, time, ast
 
 # disbales outputting log data to console by default
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 SERIAL_READ_TIMEOUT = 3.0
-
-PORTA = 'a'
-PORTB = 'b'
-PORTC = 'c'
-PORTD = 'd'
-PORTE = 'e'
-PORTF = 'f'
-PORTG = 'g'
-PORTH = 'h'
-PORTI = 'i'
-
-INPUT_FLOATING   = "input_floating"
-INPUT_PULLUP     = "input_pullup"
-INPUT_PULLDOWN   = "input_pulldown"
-OUTPUT_OPENDRAIN = "output_opendrain"
-OUTPUT_PUSHPULL  = "output_pushpull"
-
-WAIT_HIGH    = "high"
-WAIT_LOW     = "low"
-WAIT_RISING  = "rising"
-WAIT_FALLING = "falling"
 
 class MarionetteError(Exception):
   pass
@@ -48,59 +27,60 @@ class MarionetteFormatError(MarionetteError):
   pass
 
 
-def check_port_pin(port,pin):
-  if str(port).lower() not in ('a','b','c','d','e','f','g','h','i'):
-    raise MarionettePortError("Invalid io port")
-  try:
-    if int(pin) not in range(16):
-      raise MarionetteError()
-  except (MarionetteError, ValueError):
-    raise MarionettePinError("Invalid io pin")
-
-
 class Marionette(object):
-  def __init__(self, tty=None, auto_open=True ):
+  def __init__(self, port=None, auto_open=True ):
     """
     Initialize marionette instance
 
-    tty = serial port
+    port = serial port
 
     """
-    self.tty = tty
-    self.serial = None
+    self._serial_port = port
+    self._pyserial = None
 
-    if tty and auto_open:
-      self.open(tty)
+    self.fetch = FetchBASE(self)
+    self.gpio = FetchGPIO(self)
+    self.i2c = FetchI2C(self)
+    self.spi = FetchSPI(self)
+    self.mbus = FetchMBUS(self)
+    self.serial = FetchSERIAL(self)
+    self.adc = FetchADC(self)
+    self.dac = FetchDAC(self)
+    self.mcard = FetchMCARD(self)
+    self.mpipe = FetchMPIPE(self)
 
-  def open(self, tty=None):
+    if port and auto_open:
+      self.open(port)
+
+  def open(self, port=None):
     """
     Open marionette serial connection
 
-    tty = serial port
+    port = serial port
     """
     if self.is_open():
       raise MarionetteIOError("already open")
 
-    if tty:
-      self.tty = tty
+    if port:
+      self._serial_port = port
 
-    self.serial = serial.Serial(port=self.tty, timeout=SERIAL_READ_TIMEOUT)
+    self._pyserial = serial.Serial(port=self._serial_port, timeout=SERIAL_READ_TIMEOUT)
 
     # setup for a non interactive shell
-    self.serial.write("\r\n")
-    self.serial.write("+noecho\r\n")
-    self.serial.write("+noprompt\r\n")
-    self.serial.write("\r\n")
+    self._pyserial.write("\r\n")
+    self._pyserial.write("+noecho\r\n")
+    self._pyserial.write("+noprompt\r\n")
+    self._pyserial.write("\r\n")
     time.sleep(0.1)
-    self.serial.flushInput()
+    self._pyserial.flushInput()
 
   def close(self):
-    if self.serial:
-      self.serial.close()
-      self.serial = None
+    if self._pyserial:
+      self._pyserial.close()
+      self._pyserial = None
 
   def is_open(self):
-    if self.serial:
+    if self._pyserial:
       return True
     else:
       return False
@@ -124,24 +104,24 @@ class Marionette(object):
 
     result = command("command(%s,%s)" % (arg1, arg2))
     """
-    if not self.serial:
+    if not self._pyserial:
       raise MarionetteIOError("serial port not open")
 
     logger = logging.getLogger(__name__)
 
-    self.serial.flushInput()
+    self._pyserial.flushInput()
 
     logger.debug("%r", fmt.strip() % args)
 
-    self.serial.write(fmt.strip() % args)
-    self.serial.write("\r\n")
+    self._pyserial.write(fmt.strip() % args)
+    self._pyserial.write("\r\n")
 
     begin_flag = False
     results = {}
     error_list = []
 
     while True:
-      line = self.serial.readline()
+      line = self._pyserial.readline()
 
       logger.debug("%r", line)
 
@@ -176,6 +156,8 @@ class Marionette(object):
         results[param[1]] = param[2]
       elif param[0] == "sa" and len(param) == 3: # string array
         results[param[1]] = param[2].split(',')
+      elif param[0] == "se" and len(param) == 3: # string escape
+        results[param[1]] = ast.literal_eval('"' + param[2] + '"')
       elif param[0] == "f" and len(param) == 3: # float
         results[param[1]] = map(float, param[2].split(','))
       elif param[0] in ("s8","u8","s16","u16","s32","u32") and len(param) == 3: # integer
@@ -185,202 +167,178 @@ class Marionette(object):
       else:
         raise MarionetteFormatError("invalid line format")
 
+  def hex_str(self, data_list):
+    output = bytearray()
+    for data in data_list:
+      if isinstance(data, list):
+        output += bytearray(data)
+      elif isinstance(data, (str,unicode)):
+        output += bytearray(data)
+      elif isinstance(data, bytearray):
+        output += data
+      elif isinstance(data, (int,long)):
+        if data < 0 or data > 255:
+          raise ValueError("invalid byte int")
+        else:
+          output += bytearray([data])
+      else:
+        raise TypeError("unable to convert to bytearray")
+    return "h" + "".join(map(lambda x: "%02X" % x,output))
 
-  # fetch commands
+class FetchCommands():
+  def __init__(self, marionette):
+    if not isinstance(marionette, Marionette):
+      raise TypeError(marionette)
+    self.m = marionette
 
-  def fetch_version(self):
+class FetchROOT(FetchCommands):
+  def version(self):
     """ Query fetch version string """
-    return self.command("version")
+    return self.m.command("version")
 
-  def fetch_chip_id(self):
+  def chip_id(self):
     """ Return marionette unique chip id as three 32bit integers """
-    return self.command("chipid")["chip_id"]
+    return self.m.command("chipid")["chip_id"]
 
-  def fetch_reset(self):
-    self.command("reset")
+  def reset(self):
+    self.m.command("reset")
 
-  # fetch gpio commands
+  def clocks(self):
+    self.m.command("clocks")
 
-  def fetch_gpio_read(self, port, pin):
-    check_port_pin(port,pin)
-    return self.command("gpio.read(%s,%s)", port, pin)["state"]
 
-  def fetch_gpio_read_port(self, port):
-    """ Read port state as 16 bit value """
-    check_port_pin(port,0)
-    return self.command("gpio.readport(%s)",port)["state"][0]
+class FetchGPIO(FetchCommands):
+  def reset(self):
+    self.m.command("gpio.reset")
 
-  def fetch_gpio_read_all(self):
-    """ Read all ports as 16bit values """
-    return self.command("gpio.readall")
+  def read(self, *pins):
+    return self.m.command("gpio.read(%s)" % ",".join(pins))
 
-  def fetch_gpio_write(self, port, pin, state):
-    check_port_pin(port,pin)
-    self.command("gpio.write(%s,%s,%s)", port, pin, bool(state))
+  def read_pin(self, *pins):
+    return self.m.command("gpio.read(%s)" % ",".join(pins))
 
-  def fetch_gpio_set(self, port, pin):
-    check_port_pin(port,pin)
-    self.command("gpio.set(%s,%s)", port, pin)
+  def read_latch(self, *pins):
+    return self.m.command("gpio.read_latch(%s)" % ",".join(pins))
 
-  def fetch_gpio_clear(self, port, pin):
-    check_port_pin(port,pin)
-    self.command("gpio.clear(%s,%s)", port, pin)
+  def read_port(self, port):
+    return self.m.command("gpio.read_port(%s)" % port)
 
-  def fetch_gpio_config(self, port, pin, mode):
-    """
-    Configure pin as gpio
+  def read_port_latch(self, port):
+    return self.m.command("gpio.read_latch(%s)" % port)
 
-    mode = INPUT_FLOATING | INPUT_PULLUP | INPUT_PULLDOWN |
-           OUTPUT_OPENDRAIN | OUTPUT_PUSHPULL
-    """
-    check_port_pin(port,pin)
-    self.command("gpio.config(%s,%s,%s)", port, pin, mode)
+  def read_all(self):
+    return self.m.command("gpio.read_all")
 
-  def fetch_gpio_info(self, port, pin):
-    """
-    Query current pin info
+  def set(self, *pins):
+    self.command("gpio.set(%s)" % ",".join(pins))
 
-    Returns a dictionary indicating the current assigment,
-    available assignments, and io mode.
-    """
-    check_port_pin(port,pin)
-    return self.command("gpio.info(%s,%s)", port, pin)
+  def clear(self, *pins):
+    self.command("gpio.clear(%s)" % ",".join(pins))
 
-  def fetch_gpio_reset(self):
-    self.command("gpio.reset")
+  def config(self, pin, mode, pull=None, otype='pushpull', ospeed=3):
+    self.command("gpio.config(%s,%s,%s,%s, %s)" % (pin, mode, pull, otype, ospeed))
 
-  def fetch_gpio_wait(self, port, pin, event, timeout):
-    """
-    Wait for event on a gpio pin
+  def info(self, pin):
+    return self.command("gpio.info(%s)" % pin)
 
-    event   = WAIT_LOW | WAIT_HIGH | WAIT_RISING | WAIT_FALLING
-    timeout = milliseconds
+  def shiftout(self, io_pin, clk_pin, rate, bits, *data):
+    hex_data = self.m.hex_str(data)
+    self.command("gpio.shiftout(%s,%s,%s,%s,%s)" % (io_pin, clk_pin, rate, bits, hex_data))
 
-    Returns true if event occured, false if wait timeout.
+class FetchSPI(FetchCommands):
+  def reset(self, dev):
+    self.m.command("spi.reset(%s)" % dev)
 
-    """
-    check_port_pin(port,pin)
-    return self.command("gpio.wait(%s,%s,%s,%s)", port, pin, event, timeout)['event']
+  def clock_div(self):
+    return self.m.command("spi.clock_div")
 
-  # fetch adc commands
+  def config(self, dev, cpol, cpha, clock_div, byte_order):
+    self.m.command("spi.config(%s,%s,%s,%s,%s)" % (dev, cpol, cpha, clock_div, byte_order))
 
-  def fetch_adc_start(self, dev):
-    """ Start adc streaming """
-    self.command("adc.start(%s)", dev)
+  def exchange(self, dev, cs_pin, cs_pol, *data):
+    hex_data = self.m.hex_str(data)
+    return self.m.command("spi.exchange(%s,%s,%s,%s)" % (dev, cs_pin, cs_pol, hex_data))
 
-  def fetch_adc_stop(self, dev):
-    """ Stop adc streaming """
-    self.command("adc.stop(%s)", dev)
+class FetchI2C():
+  def reset(self):
+    self.m.command("i2c.reset")
 
-  def fetch_adc_single(self, dev):
-    """ Convert a single set of samples """
-    return self.command("adc.single(%s)", dev)
+  def config(self):
+    self.m.command("i2c.config")
 
-  def fetch_adc_config(self, dev, sample_rate):
-    """ Configure adc module """
+  def read(self, address, count):
+    return self.m.command("i2c.read(%s,%s)" % (address, count))
 
-    self.command("adc.config(%s,%s)", dev, sample_rate)
+  def write(self, address, *data):
+    hex_data = self.m.hex_str(data)
+    self.m.command("i2c.write(%s,%s)" % (address, hex_data))
 
-  def fetch_adc_reset(self):
-    self.command("adc.reset")
+class FetchMBUS():
+  pass
 
-  # fetch dac commands
+class FetchADC():
+  def reset(self):
+    self.m.command("adc.reset")
 
-  def fetch_dac_reset(self):
-    self.command("dac.reset")
+  def start(self, dev):
+    self.m.command("adc.start(%s)" % dev)
 
-  def fetch_dac_write(self, dev, data):
-    """ Write dac raw 12 bit values """
-    self.command("dac.write(%s,%s)", dev, data)
+  def stop(self, dev):
+    self.m.command("adc.stop(%s)" % dev)
 
-  # fetch spi commands
+  def single(self, dev):
+    return self.m.command("adc.single(%s)" % dev)
 
-  def fetch_spi_config(self, dev, clk_polarity, clk_phase, clk_div, bit_order, port=None, pin=None):
-    """
-    Configure spi module
+  def config(self, dev, sample_rate):
+    return self.m.command("adc.config(%s,%s)" % (dev, sample_rate))
 
-    dev = 1 | 2 | 3
-    clk_polarity = 0 | 1
-    clk_phase = 0 | 1
-    clk_div = 0 ... 7
-    bit_order = 0 (msb) | 1 (lsb)
-    port = chip select port or None
-    pin = chip select pin or None
+  def status(self):
+    return self.m.command("adc.status")
 
-    If a chip select port/pin are configured it will be
-    asserted low durring every spi exchange.
-    """
-    if port is not None or pin is not None:
-      check_port_pin(port,pin)
-      self.command("spi.config(%s,%s,%s,%s,%s,%s,%s)", dev, clk_polarity, clk_phase, clk_div, bit_order, port, pin)
-    else:
-      self.command("spi.config(%s,%s,%s,%s,%s)", dev, clk_polarity, clk_phase, clk_div, bit_order)
+class FetchMCARD():
+  pass
 
-  def fetch_spi_reset(self, dev):
-    self.command("spi.reset(%s)", dev)
+class FetchMPIPE():
+  pass
 
-  def fetch_spi_exchange(self, dev, tx_data):
-    """
-    Clock data out/in spi port
+class FetchDAC():
+  def reset(self):
+    self.m.command("dac.reset")
 
-    tx_data = bytearray of data to send
+  def write(self, channel, value):
+    self.m.command("dac.write(%s,%s)" % (channel, value))
 
-    if tx_data is a string or list it will be converted to a bytearray.
+class FetchSERIAL():
+  def reset(self, dev):
+    self.m.command("serial.reset(%s)" % dev)
 
-    Returns an equal length bytearray for input data.
-    """
+  def config(self, dev, rate, hwfc):
+    self.m.command("serial.config(%s,%s,%s)" % (dev, rate, hwfc))
 
-    if isinstance(tx_data, list):
-      tx_data = bytearray(tx_data)
-    elif isinstance(tx_data, (str,unicode)):
-      tx_data = bytearray(tx_data)
-    elif isinstance(tx_data, bytearray):
-      pass
-    else:
-      raise TypeError("tx_data")
+  def set_timeout(self, tx_ms, rx_ms):
+    self.m.command("serial.tiemout(%s,%s)" % (tx_ms, rx_ms))
 
-    result = self.command("spi.exchange(%s,16,%s)", dev, ",".join(map(lambda d: "%x" % d, tx_data)))
-    return bytearray(result['rx'])
+  def get_timeout(self):
+    return self.m.command("serial.timeout")
 
-  # fetch i2c commands
+  def status(self, dev):
+    return self.m.command("serial.status(%s)" % dev)
 
-  def fetch_i2c_config(self):
-    """ Configure i2c module """
-    self.command("i2c.config")
+  def break(self, dev, time_ms):
+    self.m.command("serial.break(%s,%s)" % (dev, time_ms))
 
-  def fetch_i2c_reset(self):
-    self.command("i2c.reset")
+  def read(self, dev, count):
+    return self.m.command("serial.read(%s,%s)" % (dev, count))
 
-  def fetch_i2c_write(self, address, tx_data):
-    """
-    Transmit data to a i2c slave
+  def write(self, dev, *data):
+    hex_data = self.m.hex_str(data)
+    self.m.command("serial.write(%s,%s)" % (dev, hex_data))
 
-    address = 7bit slave address
-    tx_data = bytearray of data to send
 
-    if tx_data is a string or list it will be converted to a bytearray.
-    """
 
-    if isinstance(tx_data, list):
-      tx_data = bytearray(tx_data)
-    elif isinstance(tx_data, (str,unicode)):
-      tx_data = bytearray(tx_data)
-    elif isinstance(tx_data, bytearray):
-      pass
-    else:
-      raise TypeError("tx_data")
 
-    self.command("i2c.write(%s,16,%s)", address, ",".join(map(lambda d: "%x" % d, tx_data)))
 
-  def fetch_i2c_read(self, address, count):
-    """
-    Transmit data to a i2c slave
 
-    address = 7bit slave address
-    count = number of bytes to receive
-    """
-    result = self.command("i2c.read(%s,%s)", address, count)
-    return bytearray(result['rx'])
 
 
 
