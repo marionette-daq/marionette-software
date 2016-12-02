@@ -345,7 +345,7 @@ class FetchSERIAL():
   def status(self, dev):
     return self.m.command("serial.status(%s)" % dev)
 
-  def break(self, dev, time_ms):
+  def send_break(self, dev, time_ms):
     self.m.command("serial.break(%s,%s)" % (dev, time_ms))
 
   def read(self, dev, count):
