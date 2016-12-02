@@ -229,6 +229,27 @@ class FetchGPIO(FetchCommands):
   def read_all(self):
     return self.m.command("gpio.read_all")
 
+  def write(self, pin, value):
+    value = 1 if value else 0
+    self.m.command("gpio.write(%s,%s)" % (pin, value))
+
+  def write_many(self, *pin_value):
+    pv_list = []
+    for pv in pin_value:
+      if not isinstance(pv, (tuple,list)):
+        raise TypeError(pin_value)
+      else:
+        pin = pv[0]
+        value = 1 if pv[1] else 0
+        pv_list += "%s,%s" % (pin, value)
+    self.m.command("gpio.write(%s)" % ",".join(pv_list))
+
+  def write_port(self, port, value):
+    self.m.command("gpio.write_port(%s,%s)" % (port,value))
+
+  def write_all(self, val_a, val_b, val_c, val_d, val_e, val_f, val_g, val_h, val_i):
+    self.m.command("gpio.write_all(%s,%s,%s,%s,%s,%s,%s,%s,%s)" % (val_a, val_b, val_c, val_d, val_e, val_f, val_g, val_h, val_i))
+
   def set(self, *pins):
     self.command("gpio.set(%s)" % ",".join(pins))
 
