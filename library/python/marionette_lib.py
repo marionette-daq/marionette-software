@@ -38,7 +38,7 @@ class Marionette(object):
     self._serial_port = port
     self._pyserial = None
 
-    self.fetch = FetchBASE(self)
+    self.fetch = FetchROOT(self)
     self.gpio = FetchGPIO(self)
     self.i2c = FetchI2C(self)
     self.spi = FetchSPI(self)
