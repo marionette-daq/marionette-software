@@ -280,7 +280,7 @@ class FetchSPI(FetchCommands):
     hex_data = self.m.hex_str(data)
     return self.m.command("spi.exchange(%s,%s,%s,%s)" % (dev, cs_pin, cs_pol, hex_data))
 
-class FetchI2C():
+class FetchI2C(FetchCommands):
   def reset(self):
     self.m.command("i2c.reset")
 
@@ -294,10 +294,10 @@ class FetchI2C():
     hex_data = self.m.hex_str(data)
     self.m.command("i2c.write(%s,%s)" % (address, hex_data))
 
-class FetchMBUS():
+class FetchMBUS(FetchCommands):
   pass
 
-class FetchADC():
+class FetchADC(FetchCommands):
   def reset(self):
     self.m.command("adc.reset")
 
@@ -316,20 +316,20 @@ class FetchADC():
   def status(self):
     return self.m.command("adc.status")
 
-class FetchMCARD():
+class FetchMCARD(FetchCommands):
   pass
 
-class FetchMPIPE():
+class FetchMPIPE(FetchCommands):
   pass
 
-class FetchDAC():
+class FetchDAC(FetchCommands):
   def reset(self):
     self.m.command("dac.reset")
 
   def write(self, channel, value):
     self.m.command("dac.write(%s,%s)" % (channel, value))
 
-class FetchSERIAL():
+class FetchSERIAL(FetchCommands):
   def reset(self, dev):
     self.m.command("serial.reset(%s)" % dev)
 
