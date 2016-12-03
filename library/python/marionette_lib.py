@@ -251,20 +251,20 @@ class FetchGPIO(FetchCommands):
     self.m.command("gpio.write_all(%s,%s,%s,%s,%s,%s,%s,%s,%s)" % (val_a, val_b, val_c, val_d, val_e, val_f, val_g, val_h, val_i))
 
   def set(self, *pins):
-    self.command("gpio.set(%s)" % ",".join(pins))
+    self.m.command("gpio.set(%s)" % ",".join(pins))
 
   def clear(self, *pins):
-    self.command("gpio.clear(%s)" % ",".join(pins))
+    self.m.command("gpio.clear(%s)" % ",".join(pins))
 
   def config(self, pin, mode, pull=None, otype='pushpull', ospeed=3):
-    self.command("gpio.config(%s,%s,%s,%s, %s)" % (pin, mode, pull, otype, ospeed))
+    self.m.command("gpio.config(%s,%s,%s,%s, %s)" % (pin, mode, pull, otype, ospeed))
 
   def info(self, pin):
-    return self.command("gpio.info(%s)" % pin)
+    return self.m.command("gpio.info(%s)" % pin)
 
   def shiftout(self, io_pin, clk_pin, rate, bits, *data):
     hex_data = self.m.hex_str(data)
-    self.command("gpio.shiftout(%s,%s,%s,%s,%s)" % (io_pin, clk_pin, rate, bits, hex_data))
+    self.m.command("gpio.shiftout(%s,%s,%s,%s,%s)" % (io_pin, clk_pin, rate, bits, hex_data))
 
 class FetchSPI(FetchCommands):
   def reset(self, dev):
