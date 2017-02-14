@@ -256,7 +256,7 @@ class FetchGPIO(FetchCommands):
   def clear(self, *pins):
     self.m.command("gpio.clear(%s)" % ",".join(pins))
 
-  def config(self, pin, mode, pull=None, otype='pushpull', ospeed=3):
+  def config(self, pin, mode, pull='DEFAULT', otype='DEFAULT', ospeed='DEFAULT'):
     self.m.command("gpio.config(%s,%s,%s,%s, %s)" % (pin, mode, pull, otype, ospeed))
 
   def info(self, pin):
@@ -355,8 +355,31 @@ class FetchSERIAL(FetchCommands):
     hex_data = self.m.hex_str(data)
     self.m.command("serial.write(%s,%s)" % (dev, hex_data))
 
+  def read_line(self, dev, count=None):
+    if count is None:
+      return self.m.command("serial.read_line(%s)" % (dev,))
+    else:
+      return self.m.command("serial.read_line(%s,%s)" % (dev, count))
+
+  def flush_input(self, dev):
+    return self.m.command("serial.flush_input(%s)" % (dev,))
 
 
+class SerialWrapper(object):
+  def __init__(self, marionette, serial_dev):
+    pass
+
+  def read(self, size=1):
+    pass
+
+  def write(self, data):
+    pass
+
+  def readline(self, size=-1):
+    pass
+
+  def reset_input_buffer(self):
+    pass
 
 
 
